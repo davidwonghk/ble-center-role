@@ -1,0 +1,7 @@
+<resources>
+	<string name="app_name">BLECentralRole</string>
+
+	<string name="service_uuid">abc00001-1234-5678-1234-abcd0123abcd</string>
+	<string name="tx_char_uuid">abc00002-1234-5678-1234-abcd0123abcd</string>
+	<string name="rx_char_uuid">abc00003-1234-5678-1234-abcd0123abcd</string>
+</resources>
