@@ -32,5 +32,10 @@ public class UUIDRepository {
 		final String uuid = resources.getString(R.string.rx_char_uuid);
 		return UUID.fromString(uuid);
 	}
+
+	public UUID getSubscriptUUID() {
+		final String uuid = resources.getString(R.string.subscript_uuid);
+		return UUID.fromString(uuid);
+	}
 }
 

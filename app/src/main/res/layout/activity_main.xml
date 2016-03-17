@@ -13,10 +13,31 @@
 	<ListView
 		android:id="@+id/listViewPeripherals"
 		android:layout_width="match_parent"
-		android:layout_height="match_parent"
+		android:layout_height="wrap_content"
 		android:fastScrollAlwaysVisible="false"
-		android:smoothScrollbar="true">
+		android:smoothScrollbar="true"
+		android:layout_alignParentTop="true"
+		android:layout_alignParentStart="true"
+		android:layout_above="@+id/editText">
 
 	</ListView>
+
+	<EditText
+		android:id="@+id/editText"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:editable="false"
+		android:singleLine="false"
+		android:lines="7"
+		android:layout_above="@+id/buttonDisconnect"
+		android:layout_alignParentStart="true"
+		android:minHeight="20dp"/>
+
+	<Button
+		android:id="@+id/buttonDisconnect"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_alignParentBottom="true"
+		android:layout_alignParentStart="true"/>
 
 </RelativeLayout>

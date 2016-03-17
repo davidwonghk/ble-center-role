@@ -5,6 +5,8 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
@@ -18,6 +20,7 @@ import com.vinaya.blecentralrole.model.UUIDRepository;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -38,6 +41,7 @@ public class Central {
 	private BLEScanner.ScanTask scanTask;
 
 	private BluetoothGatt gatt;
+	private boolean isManuallyDisconnect = false;
 
 	//--------------------------------------------------
 	//listener class definition
@@ -48,13 +52,10 @@ public class Central {
 		void onBluetoothNotEnabled();
 	}
 
-	public interface OnRecievdListener {
-		void onRecieved(Peripheral peripheral, String data);
-	}
-
 	public interface ConnectListener {
 		void onConnected(Peripheral peripheral);
-		void onDisconnected(Peripheral peripheral, int errorCode);
+		void onDisconnected(Peripheral peripheral, boolean isManually);
+		void onRecieved(Peripheral peripheral, String data);
 		void onConnectFail();
 	}
 
@@ -127,6 +128,11 @@ public class Central {
 		return peripheral.getServiceUUIDs().contains(uuidRepository.getServiceID());
 	}
 
+	/**
+	 * feature 4: Allow user to connect to peripherals with Service
+	 * @param peripheral the BLE Device
+	 * @param listener callbacks about what to do upon connection/disconnect
+	 */
 	public void connect(final Peripheral peripheral, final ConnectListener listener) {
 		final String TAG = getClass().getSimpleName();
 
@@ -145,9 +151,7 @@ public class Central {
 			return;
 		}
 
-		if (this.gatt != null) {
-			gatt.disconnect();
-		}
+		disconnect();
 
 		// We want to directly connect to the device,
 		// so we are setting the autoConnect parameter to false.
@@ -158,11 +162,22 @@ public class Central {
 
 				switch(newState) {
 					case BluetoothProfile.STATE_CONNECTED:
-						listener.onConnected(peripheral);
+						if (gatt.discoverServices()) {
+							listener.onConnected(peripheral);
+						} else {
+							listener.onConnectFail();
+						}
 						return;
 
 					case BluetoothProfile.STATE_DISCONNECTED:
-						listener.onDisconnected(peripheral, status);
+						listener.onDisconnected(peripheral, isManuallyDisconnect);
+
+						//feature 7: Automatically Reconnect if there is a cause of disconnection other
+						// than the intentional disconnection performed by the user.
+						if (false == isManuallyDisconnect) {
+							connect(peripheral, listener);
+						}
+						isManuallyDisconnect = false;
 						return;
 				}
 			}
@@ -170,11 +185,50 @@ public class Central {
 			@Override
 			public void onServicesDiscovered(BluetoothGatt gatt, int status) {
 				super.onServicesDiscovered(gatt, status);
+
+				if (status != BluetoothGatt.GATT_SUCCESS) {
+					Log.w("Central", "onServicesDiscovered received: " + status);
+					return;
+				}
+
+
+				BluetoothGattService service = gatt.getService(UUID.fromString("00001800-0000-1000-8000-00805f9b34fb"));
+
+				//feature 5a: Discover TX Characteristic and RX Characteristic
+				BluetoothGattCharacteristic txCharacteristic = service.getCharacteristic(uuidRepository.getTXCharacteristic());
+				if (txCharacteristic == null) return;
+
+				BluetoothGattCharacteristic rxCharacteristic = service.getCharacteristic(uuidRepository.getRXCharacteristic());
+				if (rxCharacteristic == null) return;
+
+				//feature 5b: Subscribe to RX Characteristic
+				if (false == subscriptCharacteristic(gatt, rxCharacteristic)) return;
+
+				//feature 5c: Once successfully subscribed to RX Characteristic,
+				// send the following Zero terminated string through TX Characteristic: “Ready”.
+				txCharacteristic.setValue("Ready");
+				gatt.writeCharacteristic(txCharacteristic);
+
 			}
 
 			@Override
 			public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
 				super.onCharacteristicRead(gatt, characteristic, status);
+
+				if (status != BluetoothGatt.GATT_SUCCESS) {
+					Log.w("Central", "Read Characteristic not success");
+					return;
+				}
+
+				/*
+				if (false == characteristic.getUuid().equals(uuidRepository.getRXCharacteristic())) {
+					return;
+				}
+				*/
+				final String str = new String(characteristic.getValue());
+				Log.d("Central", "Read Characteristic value = " + str);
+				listener.onRecieved(peripheral, str);
+
 			}
 
 			@Override
@@ -190,10 +244,34 @@ public class Central {
 
 	}
 
+	private static boolean subscriptCharacteristic(BluetoothGatt gatt, BluetoothGattCharacteristic rxCharacteristic) {
+		boolean subscribedResult = gatt.setCharacteristicNotification(rxCharacteristic, true);
+		if (false == subscribedResult) return false;
+
+		final List<BluetoothGattDescriptor> descriptors = rxCharacteristic.getDescriptors();
+		if (descriptors.size() <= 0) return false;
+
+		BluetoothGattDescriptor descriptor = descriptors.get(0);
+		descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+		return gatt.writeDescriptor(descriptor);
+	}
+
 
 	public void stop() {
 		if (scanTask != null) {
 			scanTask.stop();
+		}
+
+		if (gatt != null) {
+			gatt.disconnect();
+		}
+	}
+
+
+	public void disconnect() {
+		if (this.gatt != null) {
+			this.isManuallyDisconnect = true;
+			gatt.disconnect();
 		}
 	}
 
