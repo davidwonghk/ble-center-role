@@ -1,8 +1,14 @@
 package com.vinaya.blecentralrole.logic;
 
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
 import android.content.Context;
+import android.util.Log;
 
 import com.vinaya.blecentralrole.logic.scanner.BLEScanner;
 import com.vinaya.blecentralrole.logic.scanner.BLEScannerV21;
@@ -27,7 +33,11 @@ public class Central {
 	private AtomicInteger recieveCounter;
 
 	private List<Peripheral> peripheralList;
+	private BluetoothAdapter bluetoothAdapter;
+
 	private BLEScanner.ScanTask scanTask;
+
+	private BluetoothGatt gatt;
 
 	//--------------------------------------------------
 	//listener class definition
@@ -45,6 +55,7 @@ public class Central {
 	public interface ConnectListener {
 		void onConnected(Peripheral peripheral);
 		void onDisconnected(Peripheral peripheral, int errorCode);
+		void onConnectFail();
 	}
 
 
@@ -67,7 +78,7 @@ public class Central {
 		stop();
 
 		final BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
-		final BluetoothAdapter bluetoothAdapter = bluetoothManager.getAdapter();
+		this.bluetoothAdapter = bluetoothManager.getAdapter();
 
 		//if bluetoothAdapter is null, bluetooth seems to be not supported
 		if (bluetoothAdapter == null) {
@@ -116,13 +127,69 @@ public class Central {
 		return peripheral.getServiceUUIDs().contains(uuidRepository.getServiceID());
 	}
 
-	public void connect(Peripheral peripheral, ConnectListener connectListener) {
+	public void connect(final Peripheral peripheral, final ConnectListener listener) {
+		final String TAG = getClass().getSimpleName();
 
-		if (connectListener != null) {
-			connectListener.onConnected(peripheral);
+		Log.d(TAG, "Trying to reconnect.");
+		if (bluetoothAdapter == null) {
+			Log.e(TAG, "BluetoothAdapter not initialized.");
+			listener.onConnectFail();
+			return;
 		}
 
+		final String address = peripheral.getAddress();
+		final BluetoothDevice device = bluetoothAdapter.getRemoteDevice(address);
+		if (device == null) {
+			Log.e(TAG, "Device not found.  Unable to connect.");
+			listener.onConnectFail();
+			return;
+		}
+
+		if (this.gatt != null) {
+			gatt.disconnect();
+		}
+
+		// We want to directly connect to the device,
+		// so we are setting the autoConnect parameter to false.
+		this.gatt = device.connectGatt(context, false, new BluetoothGattCallback() {
+			@Override
+			public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+				super.onConnectionStateChange(gatt, status, newState);
+
+				switch(newState) {
+					case BluetoothProfile.STATE_CONNECTED:
+						listener.onConnected(peripheral);
+						return;
+
+					case BluetoothProfile.STATE_DISCONNECTED:
+						listener.onDisconnected(peripheral, status);
+						return;
+				}
+			}
+
+			@Override
+			public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+				super.onServicesDiscovered(gatt, status);
+			}
+
+			@Override
+			public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+				super.onCharacteristicRead(gatt, characteristic, status);
+			}
+
+			@Override
+			public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+				super.onCharacteristicWrite(gatt, characteristic, status);
+			}
+
+			@Override
+			public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+				super.onCharacteristicChanged(gatt, characteristic);
+			}
+		});
+
 	}
+
 
 	public void stop() {
 		if (scanTask != null) {

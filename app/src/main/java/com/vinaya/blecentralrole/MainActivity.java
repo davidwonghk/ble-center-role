@@ -6,7 +6,9 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import com.vinaya.blecentralrole.logic.Central;
 import com.vinaya.blecentralrole.model.Peripheral;
@@ -79,7 +81,7 @@ public class MainActivity extends AppCompatActivity {
 
 	//--------------------------------------------------
 	//listener callbacks
-	Central.ScanListener onBtScanListener = new Central.ScanListener() {
+	final Central.ScanListener onBtScanListener = new Central.ScanListener() {
 		@Override
 		public void onScanned(List<Peripheral> list) {
 			listAdapter.setPeripheralList(list);
@@ -108,17 +110,36 @@ public class MainActivity extends AppCompatActivity {
 		}
 	};
 
-	PeripheralListAdapter.OnItemClickListener onPeripheralClickListener = new PeripheralListAdapter.OnItemClickListener() {
+	final PeripheralListAdapter.OnItemClickListener onPeripheralClickListener = new PeripheralListAdapter.OnItemClickListener() {
 		@Override
 		public void onClick(Peripheral peripheral) {
+			central.connect(peripheral, connectListener);
 		}
 	};
 
 
-	PeripheralListAdapter.DisableFilter disablePeripheralFilter = new PeripheralListAdapter.DisableFilter() {
+	final PeripheralListAdapter.DisableFilter disablePeripheralFilter = new PeripheralListAdapter.DisableFilter() {
 		@Override
 		public boolean isDisable(Peripheral peripheral) {
 			return !central.canConnect(peripheral);
+		}
+	};
+
+
+	final Central.ConnectListener connectListener = new Central.ConnectListener() {
+		@Override
+		public void onConnected(Peripheral peripheral) {
+			Log.i("MainActivity", "connected");
+		}
+
+		@Override
+		public void onDisconnected(Peripheral peripheral, int errorCode) {
+			Log.i("MainActivity", "disconnected");
+		}
+
+		@Override
+		public void onConnectFail() {
+			Log.i("MainActivity", "conenction fail");
 		}
 	};
 
