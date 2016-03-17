@@ -69,23 +69,35 @@ public class Central {
 		final BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
 		final BluetoothAdapter bluetoothAdapter = bluetoothManager.getAdapter();
 
+		//if bluetoothAdapter is null, bluetooth seems to be not supported
 		if (bluetoothAdapter == null) {
 			listener.onFailed();
 			return;
 		}
 
+		//call the callback if bluetooth is not enabled
 		if (!bluetoothAdapter.isEnabled()) {
 			listener.onBluetoothNotEnabled();
 			return;
 		}
 
+		//TODO: better inject a scanner instead of contruct here
+		//TODO: implement a BLEScanner support android API < 21
 		final BLEScanner scanner = new BLEScannerV21(bluetoothAdapter);
 		this.scanTask = scanner.asyncScan(new BLEScanner.BLEScanListener() {
 			@Override
 			public void onDiscovered(Peripheral peripheral) {
 				if (peripheral == null) return;
-				if (peripheralList.contains(peripheral)) return;
-				peripheralList.add(peripheral);
+
+				int index = peripheralList.indexOf(peripheral);
+				if (index == -1) {
+					//avoid duplication
+					peripheralList.add(peripheral);
+				} else {
+					//updated the existing peripherals
+					peripheralList.set(index, peripheral);
+				}
+
 				listener.onScanned(peripheralList);
 			}
 
@@ -97,8 +109,11 @@ public class Central {
 
 	}
 
+	/**
+	 * check if the peripheral is enabled by the application
+	 */
 	public boolean canConnect(Peripheral peripheral) {
-		return true;
+		return peripheral.getServiceUUIDs().contains(uuidRepository.getServiceID());
 	}
 
 	public void connect(Peripheral peripheral, ConnectListener connectListener) {

@@ -13,6 +13,8 @@ import android.widget.TextView;
 import com.vinaya.blecentralrole.R;
 import com.vinaya.blecentralrole.model.Peripheral;
 
+import org.w3c.dom.Text;
+
 import java.util.List;
 
 
@@ -58,35 +60,39 @@ public class PeripheralListAdapter extends BaseAdapter {
 
 	@Override
 	public View getView(int position, View convertView, ViewGroup parent) {
-		final LinearLayout layout = (LinearLayout) layoutInflater.inflate(R.layout.item_list, parent, false);
+		final View view = layoutInflater.inflate(R.layout.item_list, parent, false);
 		final Peripheral peripheral = list.get(position);
 
-		final ImageView imageIcon = (ImageView) layout.findViewById(R.id.imageViewIcon);
-		final TextView textViewDevName = (TextView) layout.findViewById(R.id.textViewDevName);
-		final TextView textViewDevAddress = (TextView) layout.findViewById(R.id.textViewDevAddress);
+		final ImageView imageIcon = (ImageView) view.findViewById(R.id.imageViewIcon);
+		final TextView textViewDevName = (TextView) view.findViewById(R.id.textViewDevName);
+		final TextView textViewDevAddress = (TextView) view.findViewById(R.id.textViewDevAddress);
+		final TextView textViewRssi = (TextView) view.findViewById(R.id.textViewRssi);
 
 		//feature 2: Display peripherals found and their RSSI values.
 		textViewDevName.setText(peripheral.getName());
 		textViewDevAddress.setText(peripheral.getAddress());
+		textViewRssi.setText(String.valueOf(peripheral.getRssi()));
 
 		//feature 3: greying out the Peripherals that do not fulfill the condition
 		if (disableFilter != null && disableFilter.isDisable(peripheral)) {
 			imageIcon.setImageResource(R.drawable.icon_gray);
 			textViewDevName.setTextColor(Color.GRAY);
 			textViewDevAddress.setTextColor(Color.GRAY);
-			layout.setEnabled(false);
-			return layout;
+			textViewRssi.setTextColor(Color.GRAY);
+			view.setEnabled(false);
+			return view;
 		}
 
 		//otherwise, set the text color to black, and show the colorful icon
 		imageIcon.setImageResource(R.drawable.icon);
 		textViewDevName.setTextColor(Color.BLACK);
 		textViewDevAddress.setTextColor(Color.BLACK);
-		layout.setEnabled(true);
+		textViewRssi.setTextColor(Color.BLUE);
+		view.setEnabled(true);
 
 		//feature 4: allow user to connect to peripherals with Service
 		if (onItemClickListener != null) {
-			layout.setOnClickListener(new View.OnClickListener() {
+			view.setOnClickListener(new View.OnClickListener() {
 				@Override
 				public void onClick(View v) {
 					onItemClickListener.onClick(peripheral);
@@ -94,7 +100,7 @@ public class PeripheralListAdapter extends BaseAdapter {
 			});
 		}
 
-		return layout;
+		return view;
 	}
 
 

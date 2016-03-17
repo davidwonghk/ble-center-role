@@ -1,19 +1,42 @@
 package com.vinaya.blecentralrole.model;
 
-import android.bluetooth.BluetoothDevice;
+import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
+import android.os.ParcelUuid;
 
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * Representation of BLE Peripheral
  */
 public class Peripheral extends BluetoothScanInfo {
-	private UUID uuid;
+
+	private List<UUID> serviceUUIDs;
 
 	public Peripheral(ScanResult scanResult) {
+		if (scanResult == null) return;
+
 		super.device = scanResult.getDevice();
 		super.rssi = scanResult.getRssi();
+
+		this.serviceUUIDs = new ArrayList<>();
+		initServiceUUIDs(scanResult);
+
+	}
+
+	private void initServiceUUIDs(ScanResult scanResult) {
+		ScanRecord scanRecord = scanResult.getScanRecord();
+		if (scanRecord == null) return;
+
+		List<ParcelUuid> ary = scanRecord.getServiceUuids();
+		if (ary == null) return;
+
+		for(ParcelUuid pid : scanRecord.getServiceUuids()) {
+			serviceUUIDs.add(pid.getUuid());
+		}
 	}
 
 	@Override
@@ -23,7 +46,11 @@ public class Peripheral extends BluetoothScanInfo {
 		if (o instanceof Peripheral == false) return false;
 
 		Peripheral p = (Peripheral)o;
-		return getName().equals(p.getName());
+		return getAddress().equals(p.getAddress());
+	}
+
+	public int getRssi() {
+		return super.rssi;
 	}
 
 	public String getName() {
@@ -34,8 +61,8 @@ public class Peripheral extends BluetoothScanInfo {
 		return device.getAddress();
 	}
 
-	public UUID getUUID() {
-		return this.uuid;
+	public List<UUID> getServiceUUIDs() {
+		return this.serviceUUIDs;
 	}
 }
 

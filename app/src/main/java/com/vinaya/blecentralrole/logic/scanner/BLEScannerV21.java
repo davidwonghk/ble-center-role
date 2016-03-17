@@ -59,13 +59,17 @@ public class BLEScannerV21 implements BLEScanner {
 		return new ScanTask() {
 			@Override
 			public void stop() {
+				if (leScanner == null) return;
+				if (adapter.isEnabled() == false) return;
 				leScanner.stopScan(callback);
 			}
 		};
 	}
 
 
-
+	/**
+	 * use of NullObject design pattern
+	 */
 	private final static ScanTask NULL_SCAN_HANDLER = new ScanTask() {
 		@Override
 		public void stop() {
