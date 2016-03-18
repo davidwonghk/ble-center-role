@@ -58,8 +58,12 @@ public class PeripheralListAdapter extends BaseAdapter {
 	@Override
 	public long getItemId(int position) {
 		//TODO: find a better way to generate the uniqueness
-		final String address = getItem(position).getAddress();
+		Peripheral item = getItem(position);
+		if (item == null) return 0;
+
+		final String address = item.getAddress();
 		if (address == null) return 0;
+
 		return address.hashCode();
 	}
 

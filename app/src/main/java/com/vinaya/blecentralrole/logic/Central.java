@@ -20,7 +20,10 @@ import com.vinaya.blecentralrole.model.UUIDRepository;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -28,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Main logic of the whole application.
  */
 public class Central {
-	private final static String TAG = "Central";	//for logging use
+	private final static String TAG = "Central";    //for logging use
 
 	//--------------------------------------------------
 	//data members
@@ -40,6 +43,7 @@ public class Central {
 	private BluetoothAdapter bluetoothAdapter;
 
 	private BLEScanner.ScanTask scanTask;
+	private Timer scanTimer;
 
 	private BluetoothGatt gatt;
 	private boolean isManuallyDisconnect = false;
@@ -49,13 +53,15 @@ public class Central {
 
 	public interface ScanListener {
 		void onScanned(List<Peripheral> peripheralList);
+
 		void onFailed(int errorCode);
 	}
 
 	public interface ConnectListener {
 		void onConnected(Peripheral peripheral);
 
-		/**react when
+		/**
+		 * react when
 		 *
 		 * @param peripheral connected peripheral
 		 * @param isManually is the disconnect triggered by us manually?
@@ -64,8 +70,9 @@ public class Central {
 
 		/**
 		 * react on what received from the subscribe characterics
+		 *
 		 * @param peripheral connected peripheral
-		 * @param data received data, assumed to be string
+		 * @param data       received data, assumed to be string
 		 */
 		void onReceived(Peripheral peripheral, String data);
 
@@ -83,26 +90,15 @@ public class Central {
 	}
 
 
-	/**
-	 *  check if bluetooth is on and preform initialization
-	 */
-	public boolean checkAndStart() {
-		final BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
-		this.bluetoothAdapter = bluetoothManager.getAdapter();
-
-		if (bluetoothAdapter == null) { return false; }
-		if (!bluetoothAdapter.isEnabled()) { return false; }
-
-		return true;
-	}
 
 
 	/**
 	 * feature 1: scan for BLE peripherals around you
 	 *
-	 * @param listener what to do after scanned or failed
+	 * @param listener   what to do after scanned or failed
+	 * @param scanPeriod preiod to wait until next rescan, in millisecond
 	 */
-	public void scan(final ScanListener listener) {
+	public void scan(final ScanListener listener, final long scanPeriod) {
 		stopScan();
 
 		//if bluetoothAdapter is null, bluetooth seems to be not supported
@@ -136,6 +132,48 @@ public class Central {
 	}
 
 	/**
+	 * check if bluetooth is on and preform initialization
+	 * @return return true is scan success, otherwise false
+	 */
+	public boolean start() {
+		final BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
+		this.bluetoothAdapter = bluetoothManager.getAdapter();
+
+		if (bluetoothAdapter == null) {
+			return false;
+		}
+		if (!bluetoothAdapter.isEnabled()) {
+			return false;
+		}
+
+		return true;
+	}
+
+	private void refreshPeripheralList(long scanPeriod) {
+		if (this.scanTimer != null) scanTimer.cancel();
+
+		this.scanTimer = new Timer();
+		scanTimer.scheduleAtFixedRate(new TimerTask() {
+			@Override
+			public void run() {
+				//clear the whole peripheral list except the connected one
+				Peripheral connectedPeripheral = null;
+				if (peripheralList == null) return;
+				if (peripheralList.size() == 0) return;
+				for (Peripheral p : peripheralList) {
+					if (p == null) continue;
+					if (p.isConnected()) {
+						connectedPeripheral = p;
+						break;
+					}
+				}
+				peripheralList.clear();
+				peripheralList.add(connectedPeripheral);
+			}
+		}, 0, scanPeriod);
+	}
+
+	/**
 	 * check if the peripheral is enabled by the application
 	 */
 	public boolean canConnect(Peripheral peripheral) {
@@ -150,7 +188,7 @@ public class Central {
 	 */
 	public void connect(final Peripheral peripheral, final ConnectListener listener) {
 
-		Log.d(TAG, "Trying to reconnect.");
+		Log.d(TAG, "Trying to connect.");
 		if (bluetoothAdapter == null) {
 			Log.e(TAG, "BluetoothAdapter not initialized.");
 			listener.onConnectFail();
@@ -194,7 +232,7 @@ public class Central {
 						// than the intentional disconnection performed by the user.
 						if (false == isManuallyDisconnect) {
 							Log.i(TAG, "Automatically Reconnect");
-							gatt.connect();
+							connect(peripheral, listener);
 						}
 						return;
 				}
@@ -253,6 +291,15 @@ public class Central {
 				txCharacteristic.setValue(returnValue);
 				gatt.writeCharacteristic(txCharacteristic);
 			}
+
+			@Override
+			public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+				super.onCharacteristicWrite(gatt, characteristic, status);
+				if (false == characteristic.getUuid().equals(uuidRepository.getTXCharacteristic()))
+					return;
+
+				Log.d(TAG, "write tx characteristic: " + new String(characteristic.getValue()) + "status=" + String.valueOf(status));
+			}
 		});
 
 	}
@@ -270,23 +317,26 @@ public class Central {
 
 
 	private void stopScan() {
+		if (scanTimer != null) {
+			scanTimer.cancel();
+		}
+
 		if (scanTask != null) {
 			scanTask.stop();
+		}
+	}
+
+	public void disconnect() {
+		if (this.gatt != null) {
+			this.isManuallyDisconnect = true;
+			gatt.disconnect();
+			this.gatt = null;
 		}
 	}
 
 	public void stop() {
 		stopScan();
 		disconnect();
-	}
-
-
-
-	public void disconnect() {
-		if (this.gatt != null) {
-			this.isManuallyDisconnect = true;
-			gatt.disconnect();
-		}
 	}
 
 }

@@ -56,6 +56,7 @@ public class BLEScannerV21 implements BLEScanner {
 
 		leScanner.startScan(callback);
 
+
 		return new ScanTask() {
 			@Override
 			public void stop() {

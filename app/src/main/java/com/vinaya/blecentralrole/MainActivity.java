@@ -90,21 +90,15 @@ public class MainActivity extends AppCompatActivity {
 	@Override
 	protected void onStart() {
 		super.onStart();
-		while (false == central.checkAndStart()) {
-			try {
-				askToOpenBluetooth();
-				Thread.sleep(3000);
-			} catch (InterruptedException e) {
-			}
-		}
-	}
-
-
-	@Override
-	protected void onResume() {
-		super.onResume();
 		displayLoadingScreen();
-		central.scan(onBtScanListener);
+
+		final long scanPeriod = getResources().getInteger(R.integer.scan_period);
+		if (false == central.start()) {
+			askToOpenBluetooth();
+		}
+		else {
+			central.scan(onBtScanListener, scanPeriod);
+		}
 	}
 
 
@@ -215,9 +209,11 @@ public class MainActivity extends AppCompatActivity {
 	//--------------------------------------------------
 	//helper methods
 	private void displayLoadingScreen() {
+		//TODO: to be implmented
 	}
 
 	private void cancelLoadingScreen() {
+		//TODO: to be implmented
 	}
 
 	private void showAlert(final int strId, final DialogInterface.OnClickListener listener) {
