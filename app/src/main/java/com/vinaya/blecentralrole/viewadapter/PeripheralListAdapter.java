@@ -54,8 +54,9 @@ public class PeripheralListAdapter extends BaseAdapter {
 	@Override
 	public long getItemId(int position) {
 		//TODO: find a better way to generate the uniqueness
-		final String deviceName = getItem(position).getName();
-		return deviceName.hashCode();
+		final String address = getItem(position).getAddress();
+		if (address == null) return 0;
+		return address.hashCode();
 	}
 
 	@Override
@@ -67,6 +68,14 @@ public class PeripheralListAdapter extends BaseAdapter {
 		final TextView textViewDevName = (TextView) view.findViewById(R.id.textViewDevName);
 		final TextView textViewDevAddress = (TextView) view.findViewById(R.id.textViewDevAddress);
 		final TextView textViewRssi = (TextView) view.findViewById(R.id.textViewRssi);
+
+		//set the background to green is the peripheral is connected
+		if (peripheral.isConnected()) {
+			view.setBackgroundColor(Color.GREEN);
+		}
+		else {
+			view.setBackgroundColor(Color.WHITE);
+		}
 
 		//feature 2: Display peripherals found and their RSSI values.
 		textViewDevName.setText(peripheral.getName());

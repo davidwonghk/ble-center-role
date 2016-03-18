@@ -1,5 +1,6 @@
 package com.vinaya.blecentralrole.model;
 
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.os.ParcelUuid;
@@ -11,15 +12,19 @@ import java.util.UUID;
 /**
  * Representation of BLE Peripheral
  */
-public class Peripheral extends BluetoothScanInfo {
+public class Peripheral {
 
 	private List<UUID> serviceUUIDs;
+	private BluetoothDevice device;
+	private int rssi;
+
+	private boolean isConnected;
 
 	public Peripheral(ScanResult scanResult) {
 		if (scanResult == null) return;
 
-		super.device = scanResult.getDevice();
-		super.rssi = scanResult.getRssi();
+		this.device = scanResult.getDevice();
+		this.rssi = scanResult.getRssi();
 
 		this.serviceUUIDs = new ArrayList<>();
 		initServiceUUIDs(scanResult);
@@ -48,8 +53,12 @@ public class Peripheral extends BluetoothScanInfo {
 		return getAddress().equals(p.getAddress());
 	}
 
+
+	//--------------------------------------------------
+	//getters and setters
+
 	public int getRssi() {
-		return super.rssi;
+		return this.rssi;
 	}
 
 	public String getName() {
@@ -62,6 +71,14 @@ public class Peripheral extends BluetoothScanInfo {
 
 	public List<UUID> getServiceUUIDs() {
 		return this.serviceUUIDs;
+	}
+
+	public boolean isConnected() {
+		return this.isConnected;
+	}
+
+	public void setConnected(boolean isConnected) {
+		this.isConnected = isConnected;
 	}
 }
 

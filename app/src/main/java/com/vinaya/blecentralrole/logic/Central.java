@@ -12,6 +12,7 @@ import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.util.Log;
 
+import com.vinaya.blecentralrole.R;
 import com.vinaya.blecentralrole.logic.scanner.BLEScanner;
 import com.vinaya.blecentralrole.logic.scanner.BLEScannerV21;
 import com.vinaya.blecentralrole.model.Peripheral;
@@ -20,14 +21,13 @@ import com.vinaya.blecentralrole.model.UUIDRepository;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 	Main logic of the whole application.
- *
+ * Main logic of the whole application.
  */
 public class Central {
+	private final static String TAG = "Central";	//for logging use
 
 	//--------------------------------------------------
 	//data members
@@ -48,17 +48,31 @@ public class Central {
 
 	public interface ScanListener {
 		void onScanned(List<Peripheral> peripheralList);
+
 		void onFailed();
+
 		void onBluetoothNotEnabled();
 	}
 
 	public interface ConnectListener {
 		void onConnected(Peripheral peripheral);
+
+		/**react when
+		 *
+		 * @param peripheral connected peripheral
+		 * @param isManually is the disconnect triggered by us manually?
+		 */
 		void onDisconnected(Peripheral peripheral, boolean isManually);
+
+		/**
+		 * react on what recieved from the subscribe characterics
+		 * @param peripheral connected peripheral
+		 * @param data recieved data, assumed to be string
+		 */
 		void onRecieved(Peripheral peripheral, String data);
+
 		void onConnectFail();
 	}
-
 
 
 	//--------------------------------------------------
@@ -130,11 +144,11 @@ public class Central {
 
 	/**
 	 * feature 4: Allow user to connect to peripherals with Service
+	 *
 	 * @param peripheral the BLE Device
-	 * @param listener callbacks about what to do upon connection/disconnect
+	 * @param listener   callbacks about what to do upon connection/disconnect
 	 */
 	public void connect(final Peripheral peripheral, final ConnectListener listener) {
-		final String TAG = getClass().getSimpleName();
 
 		Log.d(TAG, "Trying to reconnect.");
 		if (bluetoothAdapter == null) {
@@ -160,21 +174,24 @@ public class Central {
 			public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
 				super.onConnectionStateChange(gatt, status, newState);
 
-				switch(newState) {
+				switch (newState) {
 					case BluetoothProfile.STATE_CONNECTED:
 						if (gatt.discoverServices()) {
 							listener.onConnected(peripheral);
+							peripheral.setConnected(true);
 						} else {
 							listener.onConnectFail();
 						}
 						return;
 
 					case BluetoothProfile.STATE_DISCONNECTED:
+						peripheral.setConnected(false);
 						listener.onDisconnected(peripheral, isManuallyDisconnect);
 
 						//feature 7: Automatically Reconnect if there is a cause of disconnection other
 						// than the intentional disconnection performed by the user.
 						if (false == isManuallyDisconnect) {
+							Log.i(TAG, "Automatically Reconnect");
 							connect(peripheral, listener);
 						}
 						isManuallyDisconnect = false;
@@ -192,7 +209,7 @@ public class Central {
 				}
 
 
-				BluetoothGattService service = gatt.getService(UUID.fromString("00001800-0000-1000-8000-00805f9b34fb"));
+				BluetoothGattService service = gatt.getService(uuidRepository.getServiceID());
 
 				//feature 5a: Discover TX Characteristic and RX Characteristic
 				BluetoothGattCharacteristic txCharacteristic = service.getCharacteristic(uuidRepository.getTXCharacteristic());
@@ -206,52 +223,36 @@ public class Central {
 
 				//feature 5c: Once successfully subscribed to RX Characteristic,
 				// send the following Zero terminated string through TX Characteristic: “Ready”.
-				txCharacteristic.setValue("Ready");
+				txCharacteristic.setValue(context.getResources().getString(R.string.str_ready));
 				gatt.writeCharacteristic(txCharacteristic);
 
 			}
 
-			@Override
-			public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-				super.onCharacteristicRead(gatt, characteristic, status);
 
-				if (status != BluetoothGatt.GATT_SUCCESS) {
-					Log.w("Central", "Read Characteristic not success");
-					return;
-				}
-
-				/*
-				if (false == characteristic.getUuid().equals(uuidRepository.getRXCharacteristic())) {
-					return;
-				}
-				*/
-				final String str = new String(characteristic.getValue());
-				Log.d("Central", "Read Characteristic value = " + str);
-				listener.onRecieved(peripheral, str);
-
-			}
-
-			@Override
-			public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-				super.onCharacteristicWrite(gatt, characteristic, status);
-			}
-
+			/* Callback triggered as a result of a remote characteristic notification.*/
 			@Override
 			public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
 				super.onCharacteristicChanged(gatt, characteristic);
+
+				if (false == characteristic.getUuid().equals(uuidRepository.getRXCharacteristic())) {
+					return;
+				}
+
+				final String str = new String(characteristic.getValue());
+				Log.d("Central", "Read Characteristic value = " + str);
+				listener.onRecieved(peripheral, str);
 			}
 		});
 
 	}
 
-	private static boolean subscriptCharacteristic(BluetoothGatt gatt, BluetoothGattCharacteristic rxCharacteristic) {
+	private boolean subscriptCharacteristic(BluetoothGatt gatt, BluetoothGattCharacteristic rxCharacteristic) {
 		boolean subscribedResult = gatt.setCharacteristicNotification(rxCharacteristic, true);
 		if (false == subscribedResult) return false;
 
-		final List<BluetoothGattDescriptor> descriptors = rxCharacteristic.getDescriptors();
-		if (descriptors.size() <= 0) return false;
+		final BluetoothGattDescriptor descriptor = rxCharacteristic.getDescriptor(uuidRepository.getSubscriptUUID());
+		if (descriptor == null) return false;
 
-		BluetoothGattDescriptor descriptor = descriptors.get(0);
 		descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
 		return gatt.writeDescriptor(descriptor);
 	}

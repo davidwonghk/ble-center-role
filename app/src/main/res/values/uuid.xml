@@ -1,13 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-	<!--
 	<string name="service_uuid">abc00001-1234-5678-1234-abcd0123abcd</string>
 	<string name="tx_char_uuid">abc00002-1234-5678-1234-abcd0123abcd</string>
 	<string name="rx_char_uuid">abc00003-1234-5678-1234-abcd0123abcd</string>
-	-->
-	<string name="service_uuid">0000180d-0000-1000-8000-00805f9b34fb</string>
-	<string name="tx_char_uuid">00002a00-0000-1000-8000-00805f9b34fb</string>
-	<string name="rx_char_uuid">00002a01-0000-1000-8000-00805f9b34fb</string>
 
 	<string name="subscript_uuid">00002902-0000-1000-8000-00805f9b34fb</string>
 </resources>

@@ -26,11 +26,11 @@ import java.util.List;
 //TODO: add unittest
 
 /**
- * Entry point of and the only view class of this android app.
- * <p/>
+ * Entry point of the android app and the Controller of MVC
+ *
  * The basic function of this Bluetooth Low Energy(BLE) Central Role application is to
  * allow user connect to peripherals with specific Service,
- * and perform the tasks implemented in the class [Central]
+ * and perform the tasks implemented in the class {@link Central}
  */
 public class MainActivity extends AppCompatActivity {
 	private final static int REQUEST_ENABLE_BT = 1;
@@ -220,9 +220,14 @@ public class MainActivity extends AppCompatActivity {
 		}
 
 		@Override
-		public void onRecieved(Peripheral peripheral, String data) {
+		public void onRecieved(Peripheral peripheral, final String data) {
 			Log.i("MainActivity", data);
-			editText.append("> " + data + "\n");
+			runOnUiThread(new Runnable() {
+				@Override
+				public void run() {
+					editText.append("> " + data + "\n");
+				}
+			});
 		}
 
 		@Override
