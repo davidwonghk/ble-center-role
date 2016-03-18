@@ -1,8 +1,8 @@
 package com.vinaya.blecentralrole;
+
 import android.bluetooth.BluetoothAdapter;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
@@ -11,10 +11,8 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.Toast;
 
-import com.google.android.gms.appindexing.Action;
-import com.google.android.gms.appindexing.AppIndex;
-import com.google.android.gms.common.api.GoogleApiClient;
 import com.vinaya.blecentralrole.logic.Central;
 import com.vinaya.blecentralrole.model.Peripheral;
 import com.vinaya.blecentralrole.model.UUIDRepository;
@@ -37,6 +35,7 @@ public class MainActivity extends AppCompatActivity {
 
 	//--------------------------------------------------
 	//UI components
+
 	private ListView listViewPeripherals;
 	private PeripheralListAdapter listAdapter;
 	private Button buttonDisconnect;
@@ -46,11 +45,6 @@ public class MainActivity extends AppCompatActivity {
 	//--------------------------------------------------
 	//Controller -- the main logic
 	private Central central;
-	/**
-	 * ATTENTION: This was auto-generated to implement the App Indexing API.
-	 * See https://g.co/AppIndexing/AndroidStudio for more information.
-	 */
-	private GoogleApiClient client;
 
 
 	//--------------------------------------------------
@@ -61,9 +55,11 @@ public class MainActivity extends AppCompatActivity {
 		setContentView(R.layout.activity_main);
 
 		//init UI components
+
 		this.listAdapter = new PeripheralListAdapter(MainActivity.this);
 		listAdapter.setOnItemClickListener(onPeripheralClickListener);
 		listAdapter.setDisableFilter(disablePeripheralFilter);
+		listAdapter.setOnRssiAlertListener(getResources().getInteger(R.integer.rssi_threshold), rssiAlertListener);
 
 		this.listViewPeripherals = (ListView) findViewById(R.id.listViewPeripherals);
 		listViewPeripherals.setAdapter(listAdapter);
@@ -88,34 +84,27 @@ public class MainActivity extends AppCompatActivity {
 
 		//init the controller
 		this.central = new Central(this, repository);
-		// ATTENTION: This was auto-generated to implement the App Indexing API.
-		// See https://g.co/AppIndexing/AndroidStudio for more information.
-		client = new GoogleApiClient.Builder(this).addApi(AppIndex.API).build();
 	}
 
 
 	@Override
 	protected void onStart() {
 		super.onStart();
-		// ATTENTION: This was auto-generated to implement the App Indexing API.
-		// See https://g.co/AppIndexing/AndroidStudio for more information.
-		client.connect();
+		while (false == central.checkAndStart()) {
+			try {
+				askToOpenBluetooth();
+				Thread.sleep(3000);
+			} catch (InterruptedException e) {
+			}
+		}
+	}
+
+
+	@Override
+	protected void onResume() {
+		super.onResume();
 		displayLoadingScreen();
 		central.scan(onBtScanListener);
-
-		// ATTENTION: This was auto-generated to implement the App Indexing API.
-		// See https://g.co/AppIndexing/AndroidStudio for more information.
-		Action viewAction = Action.newAction(
-				Action.TYPE_VIEW, // TODO: choose an action type.
-				"Main Page", // TODO: Define a title for the content shown.
-				// TODO: If you have web page content that matches this app activity's content,
-				// make sure this auto-generated web page URL is correct.
-				// Otherwise, set the URL to null.
-				Uri.parse("http://host/path"),
-				// TODO: Make sure this auto-generated app deep link URI is correct.
-				Uri.parse("android-app://com.vinaya.blecentralrole/http/host/path")
-		);
-		AppIndex.AppIndexApi.start(client, viewAction);
 	}
 
 
@@ -123,22 +112,6 @@ public class MainActivity extends AppCompatActivity {
 	protected void onStop() {
 		central.stop();
 		super.onStop();
-		// ATTENTION: This was auto-generated to implement the App Indexing API.
-		// See https://g.co/AppIndexing/AndroidStudio for more information.
-		Action viewAction = Action.newAction(
-				Action.TYPE_VIEW, // TODO: choose an action type.
-				"Main Page", // TODO: Define a title for the content shown.
-				// TODO: If you have web page content that matches this app activity's content,
-				// make sure this auto-generated web page URL is correct.
-				// Otherwise, set the URL to null.
-				Uri.parse("http://host/path"),
-				// TODO: Make sure this auto-generated app deep link URI is correct.
-				Uri.parse("android-app://com.vinaya.blecentralrole/http/host/path")
-		);
-		AppIndex.AppIndexApi.end(client, viewAction);
-		// ATTENTION: This was auto-generated to implement the App Indexing API.
-		// See https://g.co/AppIndexing/AndroidStudio for more information.
-		client.disconnect();
 	}
 
 	//--------------------------------------------------
@@ -153,22 +126,25 @@ public class MainActivity extends AppCompatActivity {
 		}
 
 		@Override
-		public void onFailed() {
-			AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(MainActivity.this);
-			dialogBuilder
-					.setTitle(R.string.alert_scan_fail)
-					.setPositiveButton("OK", new DialogInterface.OnClickListener() {
-						@Override
-						public void onClick(DialogInterface dialog, int which) {
-							MainActivity.this.finish();
-						}
-					}).create().show();
+		public void onFailed(int errorCode) {
+			showAlert(R.string.alert_scan_fail, new DialogInterface.OnClickListener() {
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					MainActivity.this.finish();
+				}
+			});
 		}
+	};
 
+	final PeripheralListAdapter.RssiAlertListener rssiAlertListener = new PeripheralListAdapter.RssiAlertListener() {
 		@Override
-		public void onBluetoothNotEnabled() {
-			Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-			MainActivity.this.startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+		public void onAlertRssi(Peripheral peripheral) {
+			runOnUiThread(new Runnable() {
+				@Override
+				public void run() {
+					Toast.makeText(MainActivity.this, R.string.alert_rssi_too_low, Toast.LENGTH_SHORT);
+				}
+			});
 		}
 	};
 
@@ -203,10 +179,9 @@ public class MainActivity extends AppCompatActivity {
 
 		@Override
 		public void onDisconnected(Peripheral peripheral, boolean manually) {
-			if (manually) {
-				Log.i("MainActivity", "manually disconnected");
-			} else {
-				Log.i("MainActivity", "disconnected");
+
+			if (!manually) {
+				showAlert(R.string.disconnect, null);
 			}
 
 			runOnUiThread(new Runnable() {
@@ -217,15 +192,16 @@ public class MainActivity extends AppCompatActivity {
 					editText.setVisibility(View.GONE);
 				}
 			});
+
 		}
 
 		@Override
-		public void onRecieved(Peripheral peripheral, final String data) {
+		public void onReceived(Peripheral peripheral, final String data) {
 			Log.i("MainActivity", data);
 			runOnUiThread(new Runnable() {
 				@Override
 				public void run() {
-					editText.append("> " + data + "\n");
+					editText.append(data + "\n");
 				}
 			});
 		}
@@ -242,6 +218,24 @@ public class MainActivity extends AppCompatActivity {
 	}
 
 	private void cancelLoadingScreen() {
+	}
+
+	private void showAlert(final int strId, final DialogInterface.OnClickListener listener) {
+		runOnUiThread(new Runnable() {
+			@Override
+			public void run() {
+				AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(MainActivity.this);
+				dialogBuilder.setTitle(strId);
+				dialogBuilder.setPositiveButton("OK", listener);
+				dialogBuilder.create().show();
+			}
+		});
+	}
+
+
+	private void askToOpenBluetooth() {
+		Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+		MainActivity.this.startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
 	}
 
 }

@@ -7,13 +7,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.vinaya.blecentralrole.R;
 import com.vinaya.blecentralrole.model.Peripheral;
-
-import org.w3c.dom.Text;
 
 import java.util.List;
 
@@ -24,6 +21,9 @@ public class PeripheralListAdapter extends BaseAdapter {
 	private OnItemClickListener onItemClickListener;
 	private DisableFilter disableFilter;
 
+	private int rssiThreshold;
+	private RssiAlertListener rssiAlertListener;
+
 
 	public interface OnItemClickListener {
 		void onClick(Peripheral peripheral);
@@ -31,6 +31,10 @@ public class PeripheralListAdapter extends BaseAdapter {
 
 	public interface DisableFilter {
 		boolean isDisable(Peripheral peripheral);
+	}
+
+	public interface RssiAlertListener {
+		void onAlertRssi(Peripheral peripheral);
 	}
 
 
@@ -69,9 +73,15 @@ public class PeripheralListAdapter extends BaseAdapter {
 		final TextView textViewDevAddress = (TextView) view.findViewById(R.id.textViewDevAddress);
 		final TextView textViewRssi = (TextView) view.findViewById(R.id.textViewRssi);
 
+
 		//set the background to green is the peripheral is connected
 		if (peripheral.isConnected()) {
 			view.setBackgroundColor(Color.GREEN);
+
+			//feature 10: Display an alert to the user whenever the RSSI value of the connected Peripheral goes below a certain value
+			if (rssiAlertListener != null && peripheral.getRssi() < rssiThreshold) {
+				rssiAlertListener.onAlertRssi(peripheral);
+			}
 		}
 		else {
 			view.setBackgroundColor(Color.WHITE);
@@ -96,7 +106,10 @@ public class PeripheralListAdapter extends BaseAdapter {
 		imageIcon.setImageResource(R.drawable.icon);
 		textViewDevName.setTextColor(Color.BLACK);
 		textViewDevAddress.setTextColor(Color.BLACK);
-		textViewRssi.setTextColor(Color.BLUE);
+		textViewRssi.setTextColor(
+			(rssiAlertListener != null && peripheral.getRssi() < rssiThreshold) ?
+				Color.RED : Color.BLUE
+		);
 		view.setEnabled(true);
 
 		//feature 4: allow user to connect to peripherals with Service
@@ -115,6 +128,11 @@ public class PeripheralListAdapter extends BaseAdapter {
 
 	public void setOnItemClickListener(OnItemClickListener onItemClickListener) {
 		this.onItemClickListener = onItemClickListener;
+	}
+
+	public void setOnRssiAlertListener(int rssiThreshold, RssiAlertListener listener) {
+		this.rssiThreshold = rssiThreshold;
+		this.rssiAlertListener = listener;
 	}
 
 

@@ -3,7 +3,11 @@
 
 
 	<string name="alert_scan_fail">This device do not support bluetooth!</string>
+	<string name="alert_rssi_too_low">Rssi of connected device is too low!</string>
+
 	<string name="btn_disconnect">Disconnect</string>
 	<string name="str_ready">Ready</string>
+
+	<string name="disconnect">Disconnected</string>
 
 </resources>

@@ -21,6 +21,7 @@ import com.vinaya.blecentralrole.model.UUIDRepository;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -48,10 +49,7 @@ public class Central {
 
 	public interface ScanListener {
 		void onScanned(List<Peripheral> peripheralList);
-
-		void onFailed();
-
-		void onBluetoothNotEnabled();
+		void onFailed(int errorCode);
 	}
 
 	public interface ConnectListener {
@@ -65,11 +63,11 @@ public class Central {
 		void onDisconnected(Peripheral peripheral, boolean isManually);
 
 		/**
-		 * react on what recieved from the subscribe characterics
+		 * react on what received from the subscribe characterics
 		 * @param peripheral connected peripheral
-		 * @param data recieved data, assumed to be string
+		 * @param data received data, assumed to be string
 		 */
-		void onRecieved(Peripheral peripheral, String data);
+		void onReceived(Peripheral peripheral, String data);
 
 		void onConnectFail();
 	}
@@ -81,6 +79,21 @@ public class Central {
 		this.context = context;
 		this.uuidRepository = uuidRepository;
 		this.peripheralList = Collections.synchronizedList(new ArrayList());
+		this.recieveCounter = new AtomicInteger(0);
+	}
+
+
+	/**
+	 *  check if bluetooth is on and preform initialization
+	 */
+	public boolean checkAndStart() {
+		final BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
+		this.bluetoothAdapter = bluetoothManager.getAdapter();
+
+		if (bluetoothAdapter == null) { return false; }
+		if (!bluetoothAdapter.isEnabled()) { return false; }
+
+		return true;
 	}
 
 
@@ -90,22 +103,9 @@ public class Central {
 	 * @param listener what to do after scanned or failed
 	 */
 	public void scan(final ScanListener listener) {
-		stop();
-
-		final BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
-		this.bluetoothAdapter = bluetoothManager.getAdapter();
+		stopScan();
 
 		//if bluetoothAdapter is null, bluetooth seems to be not supported
-		if (bluetoothAdapter == null) {
-			listener.onFailed();
-			return;
-		}
-
-		//call the callback if bluetooth is not enabled
-		if (!bluetoothAdapter.isEnabled()) {
-			listener.onBluetoothNotEnabled();
-			return;
-		}
 
 		//TODO: better inject a scanner instead of contruct here
 		//TODO: implement a BLEScanner support android API < 21
@@ -128,8 +128,8 @@ public class Central {
 			}
 
 			@Override
-			public void onFailed(int errorCOde) {
-				listener.onFailed();
+			public void onFailed(int errorCode) {
+				listener.onFailed(errorCode);
 			}
 		});
 
@@ -176,6 +176,7 @@ public class Central {
 
 				switch (newState) {
 					case BluetoothProfile.STATE_CONNECTED:
+						isManuallyDisconnect = false;
 						if (gatt.discoverServices()) {
 							listener.onConnected(peripheral);
 							peripheral.setConnected(true);
@@ -186,15 +187,15 @@ public class Central {
 
 					case BluetoothProfile.STATE_DISCONNECTED:
 						peripheral.setConnected(false);
+
 						listener.onDisconnected(peripheral, isManuallyDisconnect);
 
 						//feature 7: Automatically Reconnect if there is a cause of disconnection other
 						// than the intentional disconnection performed by the user.
 						if (false == isManuallyDisconnect) {
 							Log.i(TAG, "Automatically Reconnect");
-							connect(peripheral, listener);
+							gatt.connect();
 						}
-						isManuallyDisconnect = false;
 						return;
 				}
 			}
@@ -234,13 +235,23 @@ public class Central {
 			public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
 				super.onCharacteristicChanged(gatt, characteristic);
 
-				if (false == characteristic.getUuid().equals(uuidRepository.getRXCharacteristic())) {
-					return;
-				}
+				final UUID rxUUID = uuidRepository.getRXCharacteristic();
+				if (false == characteristic.getUuid().equals(rxUUID)) return;
 
-				final String str = new String(characteristic.getValue());
-				Log.d("Central", "Read Characteristic value = " + str);
-				listener.onRecieved(peripheral, str);
+				final String received = new String(characteristic.getValue());
+				Log.d(TAG, "Read Characteristic value = " + received);
+				listener.onReceived(peripheral, received);
+
+				//feature 5e: Reformat every string received and loop it back by sending it via TX Characteristic
+				final String hexStr = String.format("%02X", recieveCounter.incrementAndGet());
+				final String returnValue = hexStr + received + "\0";
+
+				//TODO: refactor this part
+				BluetoothGattService service = gatt.getService(uuidRepository.getServiceID());
+				BluetoothGattCharacteristic txCharacteristic = service.getCharacteristic(uuidRepository.getTXCharacteristic());
+				if (txCharacteristic == null) return;
+				txCharacteristic.setValue(returnValue);
+				gatt.writeCharacteristic(txCharacteristic);
 			}
 		});
 
@@ -258,15 +269,17 @@ public class Central {
 	}
 
 
-	public void stop() {
+	private void stopScan() {
 		if (scanTask != null) {
 			scanTask.stop();
 		}
-
-		if (gatt != null) {
-			gatt.disconnect();
-		}
 	}
+
+	public void stop() {
+		stopScan();
+		disconnect();
+	}
+
 
 
 	public void disconnect() {
