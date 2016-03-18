@@ -133,7 +133,7 @@ public class Central {
 
 	/**
 	 * check if bluetooth is on and preform initialization
-	 * @return return true is scan success, otherwise false
+	 * @return return true is init success, otherwise false
 	 */
 	public boolean start() {
 		final BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
@@ -323,6 +323,7 @@ public class Central {
 
 		if (scanTask != null) {
 			scanTask.stop();
+			scanTask = null;
 		}
 	}
 
@@ -330,6 +331,7 @@ public class Central {
 		if (this.gatt != null) {
 			this.isManuallyDisconnect = true;
 			gatt.disconnect();
+			gatt.close();
 			this.gatt = null;
 		}
 	}
